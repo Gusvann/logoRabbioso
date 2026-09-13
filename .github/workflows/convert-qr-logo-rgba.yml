@@ -1,0 +1,44 @@
+name: Convert QR logo to RGBA PNG
+
+on:
+  push:
+    paths:
+      - '.github/workflows/convert-qr-logo-rgba.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Convert palette PNG to truecolor RGBA
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='public/assets/jiving-rabbits/qr-logo.png'
+          tmp='/tmp/qr-logo-rgba.png'
+          if command -v magick >/dev/null 2>&1; then
+            magick "$target" -define png:color-type=6 "$tmp"
+          else
+            convert "$target" -define png:color-type=6 "$tmp"
+          fi
+          file "$tmp"
+          python - <<'PY'
+          from pathlib import Path
+          import struct
+          p=Path('/tmp/qr-logo-rgba.png')
+          d=p.read_bytes()
+          assert d[:8] == b'\x89PNG\r\n\x1a\n'
+          w,h=struct.unpack('>II',d[16:24])
+          assert (w,h)==(512,512)
+          print('RGBA_PNG_OK', len(d), w, h)
+          PY
+          mv "$tmp" "$target"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$target"
+          git commit -m 'Convert QR logo to RGBA PNG for QuickChart compatibility'
+          git push

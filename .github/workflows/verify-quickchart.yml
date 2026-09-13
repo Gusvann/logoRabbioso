@@ -12,63 +12,36 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify raw image and isolate QuickChart response
+      - name: Check raw asset
         shell: bash
         run: |
           set -euo pipefail
           RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/public/assets/jiving-rabbits/qr-logo.png'
-
-          echo 'Checking public raw asset...'
           curl -fL --silent --show-error --max-time 15 "$RAW_URL" -o /tmp/logo.png
-          python - <<'PY'
-          from pathlib import Path
-          import struct
-          data = Path('/tmp/logo.png').read_bytes()
-          assert data.startswith(b'\x89PNG\r\n\x1a\n')
-          w, h = struct.unpack('>II', data[16:24])
-          assert (w, h) == (512, 512), (w, h)
-          print(f'RAW_OK bytes={len(data)} dimensions={w}x{h}')
-          PY
+          python -c "from pathlib import Path; import struct; d=Path('/tmp/logo.png').read_bytes(); assert d[:8]==b'\\x89PNG\\r\\n\\x1a\\n'; w,h=struct.unpack('>II',d[16:24]); assert (w,h)==(512,512); print('RAW_OK',len(d),w,h)"
 
-          test_qr() {
-            name="$1"; shift
-            echo "--- $name ---"
-            code=$(curl -L --silent --show-error --max-time 30 \
-              --get 'https://quickchart.io/qr' "$@" \
-              -o "/tmp/${name}.out" -w '%{http_code}')
-            echo "HTTP=$code"
-            python - "$name" <<'PY'
-          import sys, struct
-          from pathlib import Path
-          name=sys.argv[1]
-          data=Path(f'/tmp/{name}.out').read_bytes()
-          print('BYTES=', len(data))
-          if data.startswith(b'\x89PNG\r\n\x1a\n'):
-              w,h=struct.unpack('>II',data[16:24])
-              print(f'PNG_OK {w}x{h}')
-          else:
-              print('BODY=', data[:1000].decode('utf-8','replace'))
-          PY
-          }
+      - name: Test basic QR
+        shell: bash
+        run: |
+          code=$(curl -L --silent --show-error --max-time 30 --get 'https://quickchart.io/qr' --data-urlencode 'text=JR-TEST' -o /tmp/basic.out -w '%{http_code}')
+          echo "BASIC_HTTP=$code"
+          file /tmp/basic.out
+          head -c 200 /tmp/basic.out | strings || true
 
-          test_qr basic \
-            --data-urlencode 'text=JR-TEST'
+      - name: Test QR with logo
+        shell: bash
+        run: |
+          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/public/assets/jiving-rabbits/qr-logo.png'
+          code=$(curl -L --silent --show-error --max-time 30 --get 'https://quickchart.io/qr' --data-urlencode 'text=JR-TEST' --data-urlencode "centerImageUrl=$RAW_URL" -o /tmp/logoqr.out -w '%{http_code}')
+          echo "LOGO_HTTP=$code"
+          file /tmp/logoqr.out
+          head -c 1000 /tmp/logoqr.out | strings || true
 
-          test_qr logo \
-            --data-urlencode 'text=JR-TEST' \
-            --data-urlencode "centerImageUrl=$RAW_URL"
-
-          test_qr ratio \
-            --data-urlencode 'text=JR-TEST' \
-            --data-urlencode "centerImageUrl=$RAW_URL" \
-            --data-urlencode 'centerImageSizeRatio=0.25'
-
-          test_qr full \
-            --data-urlencode 'text=JR-TEST' \
-            --data-urlencode 'caption=Prueba' \
-            --data-urlencode 'captionFontSize=20' \
-            --data-urlencode 'light=fff5ee' \
-            --data-urlencode 'dark=c62828' \
-            --data-urlencode 'size=500' \
-            --data-urlencode 'centerImageSizeRatio=0.25' \
-            --data-urlencode "centerImageUrl=$RAW_URL"
+      - name: Test full QR
+        shell: bash
+        run: |
+          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/public/assets/jiving-rabbits/qr-logo.png'
+          code=$(curl -L --silent --show-error --max-time 30 --get 'https://quickchart.io/qr' --data-urlencode 'text=JR-TEST' --data-urlencode 'caption=Prueba' --data-urlencode 'captionFontSize=20' --data-urlencode 'light=fff5ee' --data-urlencode 'dark=c62828' --data-urlencode 'size=500' --data-urlencode 'centerImageSizeRatio=0.25' --data-urlencode "centerImageUrl=$RAW_URL" -o /tmp/full.out -w '%{http_code}')
+          echo "FULL_HTTP=$code"
+          file /tmp/full.out
+          head -c 1000 /tmp/full.out | strings || true

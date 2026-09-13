@@ -1,4 +1,4 @@
-name: Convert QR logo to RGBA PNG
+name: Assemble and convert QR logo
 
 on:
   push:
@@ -14,31 +14,35 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Convert palette PNG to truecolor RGBA
+      - name: Assemble validated PNG and convert to RGBA
         shell: bash
         run: |
           set -euo pipefail
           python -m pip install --quiet pillow
+          cat .qr-upload/part0.txt .qr-upload/part1.txt .qr-upload/part2.txt .qr-upload/part3.txt .qr-upload/part4.txt > /tmp/qr-logo.b64
+          base64 -d /tmp/qr-logo.b64 > /tmp/qr-logo-source.png
           python - <<'PY'
           from PIL import Image
           from pathlib import Path
-          import struct
 
+          source = Path('/tmp/qr-logo-source.png')
           target = Path('public/assets/jiving-rabbits/qr-logo.png')
-          tmp = Path('/tmp/qr-logo-rgba.png')
-          with Image.open(target) as im:
-              im = im.convert('RGBA')
-              im.save(tmp, format='PNG', optimize=True, compress_level=9)
 
-          data = tmp.read_bytes()
-          assert data[:8] == b'\x89PNG\r\n\x1a\n'
-          w, h = struct.unpack('>II', data[16:24])
-          assert (w, h) == (512, 512)
-          print('RGBA_PNG_OK', len(data), w, h)
-          tmp.replace(target)
+          with Image.open(source) as im:
+              im.load()
+              assert im.size == (512, 512), im.size
+              rgba = im.convert('RGBA')
+              rgba.save(target, format='PNG', optimize=True, compress_level=9)
+
+          with Image.open(target) as check:
+              check.load()
+              assert check.size == (512, 512), check.size
+              assert check.mode == 'RGBA', check.mode
+
+          print('FINAL_PNG_OK', target.stat().st_size, check.size, check.mode)
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add public/assets/jiving-rabbits/qr-logo.png
-          git commit -m 'Convert QR logo to RGBA PNG for QuickChart compatibility'
+          git commit -m 'Install validated RGBA QR logo'
           git push

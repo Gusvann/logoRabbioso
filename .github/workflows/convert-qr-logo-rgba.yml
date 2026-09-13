@@ -18,27 +18,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          target='public/assets/jiving-rabbits/qr-logo.png'
-          tmp='/tmp/qr-logo-rgba.png'
-          if command -v magick >/dev/null 2>&1; then
-            magick "$target" -define png:color-type=6 "$tmp"
-          else
-            convert "$target" -define png:color-type=6 "$tmp"
-          fi
-          file "$tmp"
+          python -m pip install --quiet pillow
           python - <<'PY'
+          from PIL import Image
           from pathlib import Path
           import struct
-          p=Path('/tmp/qr-logo-rgba.png')
-          d=p.read_bytes()
-          assert d[:8] == b'\x89PNG\r\n\x1a\n'
-          w,h=struct.unpack('>II',d[16:24])
-          assert (w,h)==(512,512)
-          print('RGBA_PNG_OK', len(d), w, h)
+
+          target = Path('public/assets/jiving-rabbits/qr-logo.png')
+          tmp = Path('/tmp/qr-logo-rgba.png')
+          with Image.open(target) as im:
+              im = im.convert('RGBA')
+              im.save(tmp, format='PNG', optimize=True, compress_level=9)
+
+          data = tmp.read_bytes()
+          assert data[:8] == b'\x89PNG\r\n\x1a\n'
+          w, h = struct.unpack('>II', data[16:24])
+          assert (w, h) == (512, 512)
+          print('RGBA_PNG_OK', len(data), w, h)
+          tmp.replace(target)
           PY
-          mv "$tmp" "$target"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$target"
+          git add public/assets/jiving-rabbits/qr-logo.png
           git commit -m 'Convert QR logo to RGBA PNG for QuickChart compatibility'
           git push

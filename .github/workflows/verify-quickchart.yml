@@ -12,36 +12,72 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Check raw asset
+      - name: Verify public raw PNG
         shell: bash
         run: |
           set -euo pipefail
           RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/public/assets/jiving-rabbits/qr-logo.png'
           curl -fL --silent --show-error --max-time 15 "$RAW_URL" -o /tmp/logo.png
-          python -c "from pathlib import Path; import struct; d=Path('/tmp/logo.png').read_bytes(); assert d[:8]==b'\\x89PNG\\r\\n\\x1a\\n'; w,h=struct.unpack('>II',d[16:24]); assert (w,h)==(512,512); print('RAW_OK',len(d),w,h)"
+          python - <<'PY'
+          from pathlib import Path
+          import struct
+          d=Path('/tmp/logo.png').read_bytes()
+          assert d[:8] == b'\x89PNG\r\n\x1a\n'
+          w,h=struct.unpack('>II',d[16:24])
+          assert (w,h)==(512,512), (w,h)
+          print('RAW_OK',len(d),w,h)
+          PY
 
-      - name: Test basic QR
+      - name: Verify QuickChart with center image
         shell: bash
         run: |
-          code=$(curl -L --silent --show-error --max-time 30 --get 'https://quickchart.io/qr' --data-urlencode 'text=JR-TEST' -o /tmp/basic.out -w '%{http_code}')
-          echo "BASIC_HTTP=$code"
-          file /tmp/basic.out
-          head -c 200 /tmp/basic.out | strings || true
-
-      - name: Test QR with logo
-        shell: bash
-        run: |
+          set -euo pipefail
           RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/public/assets/jiving-rabbits/qr-logo.png'
-          code=$(curl -L --silent --show-error --max-time 30 --get 'https://quickchart.io/qr' --data-urlencode 'text=JR-TEST' --data-urlencode "centerImageUrl=$RAW_URL" -o /tmp/logoqr.out -w '%{http_code}')
+          code=$(curl -L --silent --show-error --max-time 30 \
+            --get 'https://quickchart.io/qr' \
+            --data-urlencode 'text=JR-TEST' \
+            --data-urlencode "centerImageUrl=$RAW_URL" \
+            -o /tmp/logoqr.png -w '%{http_code}')
           echo "LOGO_HTTP=$code"
-          file /tmp/logoqr.out
-          head -c 1000 /tmp/logoqr.out | strings || true
+          if [ "$code" != '200' ]; then
+            file /tmp/logoqr.png || true
+            head -c 1000 /tmp/logoqr.png | strings || true
+            exit 1
+          fi
+          python - <<'PY'
+          from pathlib import Path
+          d=Path('/tmp/logoqr.png').read_bytes()
+          assert d[:8] == b'\x89PNG\r\n\x1a\n'
+          print('LOGO_QR_OK',len(d))
+          PY
 
-      - name: Test full QR
+      - name: Verify final AppSheet parameter set
         shell: bash
         run: |
+          set -euo pipefail
           RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/public/assets/jiving-rabbits/qr-logo.png'
-          code=$(curl -L --silent --show-error --max-time 30 --get 'https://quickchart.io/qr' --data-urlencode 'text=JR-TEST' --data-urlencode 'caption=Prueba' --data-urlencode 'captionFontSize=20' --data-urlencode 'light=fff5ee' --data-urlencode 'dark=c62828' --data-urlencode 'size=500' --data-urlencode 'centerImageSizeRatio=0.25' --data-urlencode "centerImageUrl=$RAW_URL" -o /tmp/full.out -w '%{http_code}')
+          code=$(curl -L --silent --show-error --max-time 30 \
+            --get 'https://quickchart.io/qr' \
+            --data-urlencode 'text=JR-TEST' \
+            --data-urlencode 'caption=Prueba' \
+            --data-urlencode 'captionFontSize=20' \
+            --data-urlencode 'light=fff5ee' \
+            --data-urlencode 'dark=c62828' \
+            --data-urlencode 'size=500' \
+            --data-urlencode 'centerImageSizeRatio=0.25' \
+            --data-urlencode "centerImageUrl=$RAW_URL" \
+            -o /tmp/full.png -w '%{http_code}')
           echo "FULL_HTTP=$code"
-          file /tmp/full.out
-          head -c 1000 /tmp/full.out | strings || true
+          if [ "$code" != '200' ]; then
+            file /tmp/full.png || true
+            head -c 1000 /tmp/full.png | strings || true
+            exit 1
+          fi
+          python - <<'PY'
+          from pathlib import Path
+          import struct
+          d=Path('/tmp/full.png').read_bytes()
+          assert d[:8] == b'\x89PNG\r\n\x1a\n'
+          w,h=struct.unpack('>II',d[16:24])
+          print('FULL_QR_OK',len(d),w,h)
+          PY

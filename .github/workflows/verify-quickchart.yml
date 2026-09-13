@@ -1,0 +1,54 @@
+name: Verify QuickChart QR asset
+
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-quickchart.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify raw image and QuickChart rendering
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/public/assets/jiving-rabbits/qr-logo.png'
+
+          echo 'Checking public raw asset...'
+          curl -fL --silent --show-error --max-time 15 "$RAW_URL" -o /tmp/logo.png
+          python - <<'PY'
+          from pathlib import Path
+          import struct
+          p = Path('/tmp/logo.png')
+          data = p.read_bytes()
+          assert data.startswith(b'\x89PNG\r\n\x1a\n'), 'Raw asset is not PNG'
+          w, h = struct.unpack('>II', data[16:24])
+          assert (w, h) == (512, 512), (w, h)
+          print(f'RAW_OK bytes={len(data)} dimensions={w}x{h}')
+          PY
+
+          echo 'Checking QuickChart rendering with center image...'
+          curl -fL --silent --show-error --max-time 30 \
+            --get 'https://quickchart.io/qr' \
+            --data-urlencode 'text=JR-TEST' \
+            --data-urlencode 'caption=Prueba' \
+            --data-urlencode 'captionFontSize=20' \
+            --data-urlencode 'light=fff5ee' \
+            --data-urlencode 'dark=c62828' \
+            --data-urlencode 'size=500' \
+            --data-urlencode 'centerImageSizeRatio=0.25' \
+            --data-urlencode "centerImageUrl=$RAW_URL" \
+            -o /tmp/quickchart.png
+          python - <<'PY'
+          from pathlib import Path
+          import struct
+          p = Path('/tmp/quickchart.png')
+          data = p.read_bytes()
+          assert data.startswith(b'\x89PNG\r\n\x1a\n'), 'QuickChart response is not PNG'
+          w, h = struct.unpack('>II', data[16:24])
+          print(f'QUICKCHART_OK bytes={len(data)} dimensions={w}x{h}')
+          PY

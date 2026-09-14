@@ -19,16 +19,16 @@ jobs:
           RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/qr-logo.png'
 
           code=$(curl -L --silent --show-error --max-time 20 "$RAW_URL" -o /tmp/logo.png -w '%{http_code}')
+          echo "RAW_HTTP=$code"
           test "$code" = '200'
           python - <<'PY'
-          from PIL import Image
           from pathlib import Path
-          p=Path('/tmp/logo.png')
-          print('RAW_BYTES', p.stat().st_size)
-          with Image.open(p) as im:
-              im.load()
-              print('RAW_IMAGE', im.size, im.mode)
-              assert im.size == (512, 512)
+          import struct
+          d=Path('/tmp/logo.png').read_bytes()
+          assert d[:8] == b'\x89PNG\r\n\x1a\n'
+          w,h=struct.unpack('>II', d[16:24])
+          print('RAW_IMAGE', len(d), w, h)
+          assert (w,h)==(512,512)
           PY
 
           code=$(curl -L --silent --show-error --max-time 30 \
@@ -43,11 +43,17 @@ jobs:
             --data-urlencode "centerImageUrl=$RAW_URL" \
             -o /tmp/qr.png -w '%{http_code}')
           echo "QUICKCHART_HTTP=$code"
-          test "$code" = '200'
+          if [ "$code" != '200' ]; then
+            file /tmp/qr.png || true
+            head -c 1000 /tmp/qr.png | strings || true
+            exit 1
+          fi
           python - <<'PY'
-          from PIL import Image
-          with Image.open('/tmp/qr.png') as im:
-              im.load()
-              print('QUICKCHART_IMAGE', im.size, im.mode)
-              assert im.size == (500, 500)
+          from pathlib import Path
+          import struct
+          d=Path('/tmp/qr.png').read_bytes()
+          assert d[:8] == b'\x89PNG\r\n\x1a\n'
+          w,h=struct.unpack('>II', d[16:24])
+          print('QUICKCHART_IMAGE', len(d), w, h)
+          assert (w,h)==(500,500)
           PY

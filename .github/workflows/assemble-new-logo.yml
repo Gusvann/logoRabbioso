@@ -1,4 +1,4 @@
-name: Assemble new QR logo
+name: Verify final QR logo
 
 on:
   push:
@@ -6,56 +6,48 @@ on:
       - '.github/workflows/assemble-new-logo.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  assemble:
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Validate chunks, rebuild PNG, and publish root asset
+      - name: Verify raw root image and QuickChart
         shell: bash
         run: |
           set -euo pipefail
+          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/qr-logo.png'
 
-          echo 'e643c4999782d6e2d7d39d5413339737018ecae7a923a2f1bbcd80f5be2ff3ba  .qr-new/part0.txt' | sha256sum -c -
-          echo '818613fdd6f64c4432c88fd71ea3fe183c902df90ca607cc291ffcf124d9e8c2  .qr-new/part1.txt' | sha256sum -c -
-          echo 'a37f72d5db55884fdda833c1bf0e0504faae7d0d1922b93729e2b0184ed42133  .qr-new/part2.txt' | sha256sum -c -
-          echo 'bd3690ad501660be70db5d68415bf4ec5da4c8f7043735e1d2691f58ed7ed638  .qr-new/part3.txt' | sha256sum -c -
-          echo '63f26d70a59a7ebe9ea84a449e2c928f5f9b058aa4beb212471aca818cac28e6  .qr-new/part4.txt' | sha256sum -c -
-
-          cat .qr-new/part0.txt .qr-new/part1.txt .qr-new/part2.txt .qr-new/part3.txt .qr-new/part4.txt > /tmp/logo.b64
-          base64 -d /tmp/logo.b64 > /tmp/source.png
-          echo '537197afafc91c21a410bc209bb6d68fce23affc431870fa04aa62ca1f2eadc2  /tmp/source.png' | sha256sum -c -
-
-          python -m pip install --quiet pillow
+          code=$(curl -L --silent --show-error --max-time 20 "$RAW_URL" -o /tmp/logo.png -w '%{http_code}')
+          test "$code" = '200'
           python - <<'PY'
           from PIL import Image
           from pathlib import Path
-          import hashlib
-
-          src = Path('/tmp/source.png')
-          out = Path('qr-logo.png')
-          with Image.open(src) as im:
+          p=Path('/tmp/logo.png')
+          print('RAW_BYTES', p.stat().st_size)
+          with Image.open(p) as im:
               im.load()
-              assert im.size == (512, 512), im.size
-              rgba = im.convert('RGBA')
-              rgba.save(out, format='PNG', optimize=True, compress_level=9)
-
-          with Image.open(out) as check:
-              check.load()
-              assert check.size == (512, 512), check.size
-              assert check.mode == 'RGBA', check.mode
-              alpha = check.getchannel('A').getextrema()
-              assert alpha[0] == 0 and alpha[1] == 255, alpha
-
-          print('FINAL_OK', out.stat().st_size, hashlib.sha256(out.read_bytes()).hexdigest())
+              print('RAW_IMAGE', im.size, im.mode)
+              assert im.size == (512, 512)
           PY
 
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add qr-logo.png
-          git commit -m 'Add new QR logo at repository root'
-          git push
+          code=$(curl -L --silent --show-error --max-time 30 \
+            --get 'https://quickchart.io/qr' \
+            --data-urlencode 'text=JR-TEST' \
+            --data-urlencode 'caption=Prueba' \
+            --data-urlencode 'captionFontSize=20' \
+            --data-urlencode 'light=fff5ee' \
+            --data-urlencode 'dark=c62828' \
+            --data-urlencode 'size=500' \
+            --data-urlencode 'centerImageSizeRatio=0.25' \
+            --data-urlencode "centerImageUrl=$RAW_URL" \
+            -o /tmp/qr.png -w '%{http_code}')
+          echo "QUICKCHART_HTTP=$code"
+          test "$code" = '200'
+          python - <<'PY'
+          from PIL import Image
+          with Image.open('/tmp/qr.png') as im:
+              im.load()
+              print('QUICKCHART_IMAGE', im.size, im.mode)
+              assert im.size == (500, 500)
+          PY

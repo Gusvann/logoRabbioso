@@ -17,21 +17,17 @@ jobs:
         run: |
           set -euo pipefail
           RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.jpg'
-
-          echo '--- RAW ---'
           code=$(curl -L --silent --show-error --max-time 20 "$RAW_URL" -o /tmp/logo.jpg -w '%{http_code}')
           echo "RAW_HTTP=$code"
           file /tmp/logo.jpg || true
           wc -c /tmp/logo.jpg || true
           test "$code" = '200'
-
-          echo '--- VALIDATE FULL ---'
+          echo '--- VALIDATE ---'
           curl -sS --max-time 30 'https://quickchart.io/api/validate-qr'             -H 'Content-Type: application/json'             --data-binary '{"text":"JR-TEST","caption":"Prueba","captionFontSize":20,"light":"fff5ee","dark":"c62828","size":500,"centerImageSizeRatio":0.25,"centerImageUrl":"https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.jpg"}'
           echo
-
-          echo '--- GET FULL ---'
           code=$(curl -L --silent --show-error --max-time 30             --get 'https://quickchart.io/qr'             --data-urlencode 'text=JR-TEST'             --data-urlencode 'caption=Prueba'             --data-urlencode 'captionFontSize=20'             --data-urlencode 'light=fff5ee'             --data-urlencode 'dark=c62828'             --data-urlencode 'size=500'             --data-urlencode 'centerImageSizeRatio=0.25'             --data-urlencode "centerImageUrl=$RAW_URL"             -o /tmp/qr.png -w '%{http_code}')
           echo "QUICKCHART_HTTP=$code"
           file /tmp/qr.png || true
           wc -c /tmp/qr.png || true
           test "$code" = '200'
+# verify compact jpg

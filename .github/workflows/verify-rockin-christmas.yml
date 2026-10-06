@@ -1,4 +1,4 @@
-name: Diagnose Rockin Christmas QR
+name: Verify Rockin Christmas JPG
 
 on:
   push:
@@ -12,32 +12,26 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Diagnose QuickChart
+      - name: Verify QuickChart with JPG
         shell: bash
         run: |
           set -euo pipefail
-          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png'
+          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.jpg'
 
           echo '--- RAW ---'
-          code=$(curl -L --silent --show-error --max-time 20 "$RAW_URL" -o /tmp/logo.png -w '%{http_code}')
+          code=$(curl -L --silent --show-error --max-time 20 "$RAW_URL" -o /tmp/logo.jpg -w '%{http_code}')
           echo "RAW_HTTP=$code"
-          file /tmp/logo.png || true
-          wc -c /tmp/logo.png || true
-
-          echo '--- VALIDATE CENTER IMAGE ---'
-          curl -sS --max-time 30 'https://quickchart.io/api/validate-qr'             -H 'Content-Type: application/json'             --data-binary '{"text":"JR-TEST","centerImageUrl":"https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png"}' || true
-          echo
+          file /tmp/logo.jpg || true
+          wc -c /tmp/logo.jpg || true
+          test "$code" = '200'
 
           echo '--- VALIDATE FULL ---'
-          curl -sS --max-time 30 'https://quickchart.io/api/validate-qr'             -H 'Content-Type: application/json'             --data-binary '{"text":"JR-TEST","caption":"Prueba","captionFontSize":20,"light":"fff5ee","dark":"c62828","size":500,"centerImageSizeRatio":0.25,"centerImageUrl":"https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png"}' || true
+          curl -sS --max-time 30 'https://quickchart.io/api/validate-qr'             -H 'Content-Type: application/json'             --data-binary '{"text":"JR-TEST","caption":"Prueba","captionFontSize":20,"light":"fff5ee","dark":"c62828","size":500,"centerImageSizeRatio":0.25,"centerImageUrl":"https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.jpg"}'
           echo
 
-          echo '--- GET CENTER IMAGE ONLY ---'
-          code=$(curl -L --silent --show-error --max-time 30             --get 'https://quickchart.io/qr'             --data-urlencode 'text=JR-TEST'             --data-urlencode "centerImageUrl=$RAW_URL"             -o /tmp/only.out -w '%{http_code}')
-          echo "ONLY_HTTP=$code"
-          file /tmp/only.out || true
-
-          echo '--- GET WIDTH HEIGHT ---'
-          code=$(curl -L --silent --show-error --max-time 30             --get 'https://quickchart.io/qr'             --data-urlencode 'text=JR-TEST'             --data-urlencode 'size=500'             --data-urlencode 'centerImageWidth=120'             --data-urlencode 'centerImageHeight=90'             --data-urlencode "centerImageUrl=$RAW_URL"             -o /tmp/wh.out -w '%{http_code}')
-          echo "WH_HTTP=$code"
-          file /tmp/wh.out || true
+          echo '--- GET FULL ---'
+          code=$(curl -L --silent --show-error --max-time 30             --get 'https://quickchart.io/qr'             --data-urlencode 'text=JR-TEST'             --data-urlencode 'caption=Prueba'             --data-urlencode 'captionFontSize=20'             --data-urlencode 'light=fff5ee'             --data-urlencode 'dark=c62828'             --data-urlencode 'size=500'             --data-urlencode 'centerImageSizeRatio=0.25'             --data-urlencode "centerImageUrl=$RAW_URL"             -o /tmp/qr.png -w '%{http_code}')
+          echo "QUICKCHART_HTTP=$code"
+          file /tmp/qr.png || true
+          wc -c /tmp/qr.png || true
+          test "$code" = '200'

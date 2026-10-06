@@ -1,0 +1,35 @@
+name: Verify Rockin Christmas QR
+
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-rockin-christmas.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify raw image and QuickChart
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png'
+
+          echo '--- RAW ---'
+          code=$(curl -L --silent --show-error --max-time 20 "$RAW_URL" -o /tmp/logo.png -w '%{http_code}')
+          echo "RAW_HTTP=$code"
+          file /tmp/logo.png || true
+          wc -c /tmp/logo.png || true
+
+          echo '--- QUICKCHART ---'
+          code=$(curl -L --silent --show-error --max-time 30             --get 'https://quickchart.io/qr'             --data-urlencode 'text=JR-TEST'             --data-urlencode 'caption=Prueba'             --data-urlencode 'captionFontSize=20'             --data-urlencode 'light=fff5ee'             --data-urlencode 'dark=c62828'             --data-urlencode 'size=500'             --data-urlencode 'centerImageSizeRatio=0.25'             --data-urlencode "centerImageUrl=$RAW_URL"             -o /tmp/qr.out -w '%{http_code}')
+          echo "QUICKCHART_HTTP=$code"
+          file /tmp/qr.out || true
+          wc -c /tmp/qr.out || true
+          if [ "$code" != '200' ]; then
+            strings /tmp/qr.out | head -40 || true
+            exit 1
+          fi

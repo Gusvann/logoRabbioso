@@ -45,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           sleep 5
-          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png?rev=compat-v1'
+          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png?rev=compat-v2'
           code=$(curl -L --silent --show-error --max-time 20 "$RAW_URL" -o /tmp/logo.png -w '%{http_code}')
           echo "RAW_HTTP=$code"
           file /tmp/logo.png

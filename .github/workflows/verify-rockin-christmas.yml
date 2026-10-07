@@ -1,4 +1,4 @@
-name: Verify Rockin Christmas PNG
+name: Repair and verify Rockin Christmas PNG
 
 on:
   push:
@@ -6,30 +6,58 @@ on:
       - '.github/workflows/verify-rockin-christmas.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  verify:
+  repair:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify QuickChart with PNG
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Re-encode PNG for QuickChart compatibility
         shell: bash
         run: |
           set -euo pipefail
-          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png'
+          python -m pip install --quiet pillow
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          p=Path('rockin-christmas.png')
+          with Image.open(p) as im:
+              im.load()
+              print('SOURCE', im.size, im.mode)
+              rgb=im.convert('RGB')
+              rgb.save('/tmp/rockin.png', format='PNG', optimize=False, compress_level=6)
+          Path('/tmp/rockin.png').replace(p)
+          with Image.open(p) as chk:
+              chk.load()
+              print('REPAIRED', chk.size, chk.mode)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add rockin-christmas.png
+          git commit -m 'Re-encode Rockin Christmas PNG for QuickChart'
+          git push
 
+      - name: Verify public image and QuickChart
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 5
+          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png?rev=compat-v1'
           code=$(curl -L --silent --show-error --max-time 20 "$RAW_URL" -o /tmp/logo.png -w '%{http_code}')
           echo "RAW_HTTP=$code"
-          file /tmp/logo.png || true
-          wc -c /tmp/logo.png || true
+          file /tmp/logo.png
+          wc -c /tmp/logo.png
           test "$code" = '200'
 
           echo '--- VALIDATE ---'
-          curl -sS --max-time 30 'https://quickchart.io/api/validate-qr'             -H 'Content-Type: application/json'             --data-binary '{"text":"JR-TEST","caption":"Prueba","captionFontSize":20,"light":"fff5ee","dark":"c62828","size":500,"centerImageSizeRatio":0.25,"centerImageUrl":"https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png"}'
+          curl -sS --max-time 30 'https://quickchart.io/api/validate-qr'             -H 'Content-Type: application/json'             --data-binary '{"text":"JR-TEST","caption":"Prueba","captionFontSize":20,"light":"fff5ee","dark":"c62828","size":500,"centerImageSizeRatio":0.25,"centerImageUrl":"https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png?rev=compat-v1"}'
           echo
 
           code=$(curl -L --silent --show-error --max-time 30             --get 'https://quickchart.io/qr'             --data-urlencode 'text=JR-TEST'             --data-urlencode 'caption=Prueba'             --data-urlencode 'captionFontSize=20'             --data-urlencode 'light=fff5ee'             --data-urlencode 'dark=c62828'             --data-urlencode 'size=500'             --data-urlencode 'centerImageSizeRatio=0.25'             --data-urlencode "centerImageUrl=$RAW_URL"             -o /tmp/qr.png -w '%{http_code}')
           echo "QUICKCHART_HTTP=$code"
-          file /tmp/qr.png || true
-          wc -c /tmp/qr.png || true
+          file /tmp/qr.png
+          wc -c /tmp/qr.png
           test "$code" = '200'

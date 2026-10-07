@@ -21,7 +21,8 @@ jobs:
           set -euo pipefail
           python -m pip install --quiet pillow
           python - <<'PY'
-          from PIL import Image
+          from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
           from pathlib import Path
           p=Path('rockin-christmas.png')
           with Image.open(p) as im:
@@ -37,7 +38,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add rockin-christmas.png
-          git commit -m 'Re-encode Rockin Christmas PNG for QuickChart'
+          git commit -m 'Repair truncated Rockin Christmas PNG for QuickChart' || true
           git push
 
       - name: Verify public image and QuickChart
@@ -45,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           sleep 5
-          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png?rev=compat-v2'
+          RAW_URL='https://raw.githubusercontent.com/Gusvann/logoRabbioso/main/rockin-christmas.png?rev=compat-v3'
           code=$(curl -L --silent --show-error --max-time 20 "$RAW_URL" -o /tmp/logo.png -w '%{http_code}')
           echo "RAW_HTTP=$code"
           file /tmp/logo.png
